@@ -64,6 +64,58 @@ Every LLM follows identical rules regardless of which client is used.
 | `map status` | Show active sessions and wiki stats |
 | `map sync` | Re-inject protocol into config files |
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Your Workspace                        │
+│  SESSIONS.md + wiki/ + CLAUDE.md + GEMINI.md + AGENTS.md │
+└────────┬──────────────┬──────────────┬──────────────────┘
+         │              │              │
+    ┌────▼────┐   ┌─────▼─────┐  ┌────▼────┐
+    │ Claude  │   │  Gemini   │  │  Codex  │    ← Desktop (CLI)
+    │  Code   │   │   CLI     │  │   CLI   │
+    └─────────┘   └───────────┘  └─────────┘
+                        │
+              ┌─────────▼──────────┐
+              │  slack-agent-bridge │              ← Mobile (Slack Bot)
+              │  (Mac Mini daemon)  │
+              └─────────┬──────────┘
+                        │
+              ┌─────────▼──────────┐
+              │   Slack App        │
+              │  (Phone/Tablet)    │
+              └────────────────────┘
+```
+
+### Desktop: CLI 직접 사용
+`map start claude` → CLI가 프로토콜에 따라 SESSIONS.md 등록, wiki 참조, 세션 종료 시 해제.
+대화형 세션이므로 LLM이 직접 파일을 읽고 쓸 수 있다.
+
+### Mobile: Slack Bot 경유
+모바일 디바이스에서는 Slack을 통해 접근한다.
+CLI는 `-p` 모드(원샷 실행)로 동작하므로 LLM이 직접 프로토콜을 따를 수 없다.
+따라서 **bridge가 프로토콜을 대신 처리**한다:
+
+1. Slack 스레드 생성 → bridge가 SESSIONS.md에 세션 등록
+2. 메시지 수신 → bridge가 wiki/Index.md + 관련 토픽을 프롬프트에 주입 → CLI `-p` 실행
+3. 응답에서 새 지식 발견 → bridge가 wiki/topics/ 업데이트
+4. 스레드 만료(TTL) → bridge가 SESSIONS.md에서 세션 삭제
+
+```
+# bridge의 역할 (프로토콜 프록시)
+Slack 메시지 → bridge가 wiki 컨텍스트 주입 → claude -p "{wiki context + user prompt}" → 응답
+```
+
+### Slack Bot 설정
+
+1. workspace를 `map init`으로 초기화
+2. slack-agent-bridge의 `.env`에 워크스페이스 경로 설정:
+   ```
+   MAP_WORKSPACE_DIR=/path/to/your/workspace
+   ```
+3. bridge가 해당 경로의 SESSIONS.md와 wiki/를 관리
+
 ## Design Principles
 
 - **File-based**: No database, no server, no infrastructure
