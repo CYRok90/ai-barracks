@@ -144,8 +144,8 @@ configure_hooks() {
                 if command -v jq &>/dev/null; then
                     local tmp="${claude_settings}.tmp"
                     jq '.hooks = (.hooks // {}) |
-                        .hooks.SessionStart = (.hooks.SessionStart // []) + [{"type": "command", "command": "map hook start claude"}] |
-                        .hooks.SessionEnd = (.hooks.SessionEnd // []) + [{"type": "command", "command": "map hook end claude"}]' \
+                        .hooks.SessionStart = (.hooks.SessionStart // []) + [{"matcher": "", "hooks": [{"type": "command", "command": "map hook start claude"}]}] |
+                        .hooks.SessionEnd = (.hooks.SessionEnd // []) + [{"matcher": "", "hooks": [{"type": "command", "command": "map hook end claude"}]}]' \
                         "$claude_settings" > "$tmp" && mv "$tmp" "$claude_settings"
                     log_ok "Claude Code hooks configured (SessionStart + SessionEnd)"
                 else
