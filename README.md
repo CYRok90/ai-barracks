@@ -83,6 +83,22 @@ SessionStart Hook                    세션 진행 중                    Sessio
 **핵심 원칙**: hook end는 기계적 정리만, hook start는 LLM 컨텍스트 주입 담당.
 세션 종료 시점에는 LLM이 이미 끝나므로 지적 작업(wiki 추출)은 다음 세션 시작 시 처리.
 
+### Session Auto-Recording (v0.4.0)
+
+세션 내용을 LLM의 instruction-following에 의존하지 않고 **자동으로 캡처 + 요약**한다.
+
+| CLI | 캡처 방식 | 요약 시점 |
+|-----|----------|----------|
+| Claude Code | `$CLAUDE_TRANSCRIPT_PATH` (내장) | SessionEnd hook |
+| Gemini CLI | `script -q` (raw 캡처) | `map start` trap |
+| Codex CLI | `script -q` (raw 캡처) | `map start` trap |
+
+세션 종료 시 자동으로:
+1. Raw 캡처에서 ANSI 코드 제거
+2. `claude -p`로 요약 (Log/Decisions/Wiki Extractions 추출)
+3. `sessions/{id}.md`에 구조화된 기록 저장
+4. Raw 파일 삭제
+
 ### Hook 설정
 
 `map init`이 CLI별 hook을 자동 감지 + 설정한다:

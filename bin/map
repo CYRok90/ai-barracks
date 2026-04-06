@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-MAP_VERSION="0.3.0"
+MAP_VERSION="0.4.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$(cd "$SCRIPT_DIR/../templates" && pwd)"
 
