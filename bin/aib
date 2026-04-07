@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-AIB_VERSION="0.5.0"
+AIB_VERSION="0.6.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$(cd "$SCRIPT_DIR/../templates" && pwd)"
 
@@ -52,6 +52,54 @@ ensure_sessions_md() {
 
 ensure_sessions_dir() {
     mkdir -p sessions
+}
+
+# --- Global barrack registry (~/.aib/barracks.json) ---
+AIB_REGISTRY="$HOME/.aib/barracks.json"
+
+ensure_registry() {
+    mkdir -p "$HOME/.aib"
+    [ -f "$AIB_REGISTRY" ] || echo '[]' > "$AIB_REGISTRY"
+}
+
+register_barrack() {
+    local path="$1"
+    ensure_registry
+
+    # Extract metadata from barrack files
+    local name
+    name=$(basename "$path")
+    local description=""
+    local expertise=""
+    local topics=""
+
+    if [ -f "$path/agent.yaml" ]; then
+        description=$(grep "^description:" "$path/agent.yaml" 2>/dev/null | sed 's/^description: *"*//;s/"*$//' || true)
+    fi
+    if [ -f "$path/SOUL.md" ]; then
+        expertise=$(sed -n '/^## Expertise/,/^## /{/^- /p;}' "$path/SOUL.md" 2>/dev/null | sed 's/^- //' | tr '\n' ',' | sed 's/,$//' || true)
+    fi
+    if [ -f "$path/wiki/Index.md" ]; then
+        topics=$(grep "^|" "$path/wiki/Index.md" 2>/dev/null | grep -v "Topic\|---" | awk -F'|' '{print $2}' | tr -d ' ' | tr '\n' ',' | sed 's/,$//' || true)
+    fi
+
+    # Remove existing entry for this path, then add new
+    local tmp="${AIB_REGISTRY}.tmp"
+    jq --arg p "$path" '[.[] | select(.path != $p)]' "$AIB_REGISTRY" > "$tmp" 2>/dev/null || echo '[]' > "$tmp"
+    jq --arg p "$path" --arg n "$name" --arg d "$description" --arg e "$expertise" --arg t "$topics" \
+        '. + [{"path": $p, "name": $n, "description": $d, "expertise": $e, "topics": $t}]' \
+        "$tmp" > "$AIB_REGISTRY"
+    rm -f "$tmp"
+    log_ok "Barrack registered in ~/.aib/barracks.json"
+}
+
+unregister_barrack() {
+    local path="$1"
+    ensure_registry
+    local tmp="${AIB_REGISTRY}.tmp"
+    jq --arg p "$path" '[.[] | select(.path != $p)]' "$AIB_REGISTRY" > "$tmp" 2>/dev/null || true
+    mv "$tmp" "$AIB_REGISTRY"
+    log_ok "Barrack unregistered: $path"
 }
 
 # --- Strip ANSI codes from raw capture ---
@@ -235,12 +283,15 @@ cmd_init() {
     # 8. Inject protocol
     inject_protocol "$target"
 
-    # 9. Auto-configure CLI hooks
+    # 9. Register in global barrack registry
+    register_barrack "$target"
+
+    # 10. Auto-configure CLI hooks
     echo "" >&2
     configure_hooks
 
     echo "" >&2
-    log_ok "Workspace initialized!"
+    log_ok "Barrack initialized!"
     echo "" >&2
     echo "Usage:" >&2
     echo "  aib start claude \"your task\"    Start a tracked session" >&2
@@ -686,6 +737,105 @@ cmd_council() {
 }
 
 # ============================================================
+# aib barracks [list|remove|route] — Manage registered barracks
+# ============================================================
+cmd_barracks() {
+    ensure_registry
+    local subcmd="${1:-list}"
+
+    case "$subcmd" in
+        list)
+            echo -e "${CYAN}Registered Barracks${NC}" >&2
+            echo "" >&2
+            if [ "$(jq length "$AIB_REGISTRY")" -eq 0 ]; then
+                echo "  (none — run 'aib init' in a directory to register)" >&2
+                return
+            fi
+            jq -r '.[] | "  \(.name)\n    Path: \(.path)\n    Expertise: \(.expertise)\n    Topics: \(.topics)\n"' "$AIB_REGISTRY" >&2
+            ;;
+        remove)
+            local path="${2:-}"
+            if [ -z "$path" ]; then
+                log_err "Usage: aib barracks remove <path>"
+                exit 1
+            fi
+            path="$(cd "$path" 2>/dev/null && pwd || echo "$path")"
+            unregister_barrack "$path"
+            ;;
+        route)
+            local query="${2:-}"
+            if [ -z "$query" ]; then
+                log_err "Usage: aib barracks route \"query text\""
+                exit 1
+            fi
+            route_to_barrack "$query"
+            ;;
+        refresh)
+            # Re-scan all registered barracks and update metadata
+            local paths
+            paths=$(jq -r '.[].path' "$AIB_REGISTRY")
+            for p in $paths; do
+                if [ -d "$p" ]; then
+                    register_barrack "$p"
+                else
+                    log_warn "Barrack not found, removing: $p"
+                    unregister_barrack "$p"
+                fi
+            done
+            log_ok "All barracks refreshed"
+            ;;
+        *)
+            log_err "Usage: aib barracks <list|remove|route|refresh>"
+            exit 1
+            ;;
+    esac
+}
+
+route_to_barrack() {
+    local query="$1"
+    local query_lower
+    query_lower=$(echo "$query" | tr '[:upper:]' '[:lower:]')
+
+    ensure_registry
+    local best_path=""
+    local best_score=0
+
+    # Score each barrack by keyword match
+    while IFS= read -r entry; do
+        local path name expertise topics
+        path=$(echo "$entry" | jq -r '.path')
+        name=$(echo "$entry" | jq -r '.name')
+        expertise=$(echo "$entry" | jq -r '.expertise' | tr '[:upper:]' '[:lower:]')
+        topics=$(echo "$entry" | jq -r '.topics' | tr '[:upper:]' '[:lower:]')
+
+        local score=0
+        local all_keywords="${expertise},${topics},${name}"
+
+        # Count keyword matches
+        IFS=',' read -ra keywords <<< "$all_keywords"
+        for kw in "${keywords[@]}"; do
+            kw=$(echo "$kw" | tr -d ' ')
+            [ -z "$kw" ] && continue
+            if echo "$query_lower" | grep -qi "$kw" 2>/dev/null; then
+                score=$((score + 1))
+            fi
+        done
+
+        if [ "$score" -gt "$best_score" ]; then
+            best_score=$score
+            best_path=$path
+        fi
+    done < <(jq -c '.[]' "$AIB_REGISTRY")
+
+    if [ -n "$best_path" ] && [ "$best_score" -gt 0 ]; then
+        echo "$best_path"
+    else
+        # Return default (first registered barrack)
+        jq -r '.[0].path // empty' "$AIB_REGISTRY"
+    fi
+}
+
+# ============================================================
 # aib sync
 # ============================================================
 cmd_sync() {
@@ -711,16 +861,18 @@ case "${1:-}" in
     status)  cmd_status ;;
     sync)    cmd_sync ;;
     council) shift; cmd_council "$@" ;;
+    barracks) shift; cmd_barracks "$@" ;;
     version) echo "aib v${AIB_VERSION}" ;;
     -h|--help|help|"")
         echo "aib — AI Barracks CLI v${AIB_VERSION}"
         echo ""
         echo "Commands:"
-        echo "  init [path]                    Initialize workspace + configure hooks"
+        echo "  init [path]                    Initialize barrack + configure hooks"
         echo "  start <client> [task]          Start LLM session with tracking"
         echo "  hook start <client>            (Auto) Called by CLI SessionStart hooks"
         echo "  hook end <client>              (Auto) Called by CLI SessionEnd hooks"
         echo "  hook continue <session_id>     Continue another CLI's session"
+        echo "  barracks [list|remove|route]   Manage registered barracks"
         echo "  status                         Show active sessions and wiki"
         echo "  sync                           Re-inject protocol into config files"
         echo "  council [-r N] [-m MODE] \"topic\"  Run multi-LLM debate council"
