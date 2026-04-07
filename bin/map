@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-MAP_VERSION="0.4.0"
+MAP_VERSION="0.5.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$(cd "$SCRIPT_DIR/../templates" && pwd)"
 
@@ -206,10 +206,36 @@ cmd_init() {
         log_ok "Updated .gitignore (SESSIONS.md)"
     fi
 
-    # 5. Inject protocol
+    # 5. agent.yaml (GitAgent 호환)
+    local ws_name
+    ws_name=$(basename "$target")
+    if [ ! -f "$target/agent.yaml" ]; then
+        sed "s|{{WORKSPACE_NAME}}|${ws_name}|g" "$TEMPLATE_DIR/agent.yaml" > "$target/agent.yaml"
+        log_ok "agent.yaml created"
+    else
+        log_warn "agent.yaml already exists, skipping"
+    fi
+
+    # 6. SOUL.md (에이전트 정체성)
+    if [ ! -f "$target/SOUL.md" ]; then
+        sed "s|{{WORKSPACE_NAME}}|${ws_name}|g" "$TEMPLATE_DIR/SOUL.md" > "$target/SOUL.md"
+        log_ok "SOUL.md created"
+    else
+        log_warn "SOUL.md already exists, skipping"
+    fi
+
+    # 7. RULES.md (행동 규칙)
+    if [ ! -f "$target/RULES.md" ]; then
+        cp "$TEMPLATE_DIR/RULES.md" "$target/RULES.md"
+        log_ok "RULES.md created"
+    else
+        log_warn "RULES.md already exists, skipping"
+    fi
+
+    # 8. Inject protocol
     inject_protocol "$target"
 
-    # 6. Auto-configure CLI hooks
+    # 9. Auto-configure CLI hooks
     echo "" >&2
     configure_hooks
 
