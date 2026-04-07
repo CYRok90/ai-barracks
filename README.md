@@ -19,11 +19,15 @@ aib status                  # Show active agents and wiki
 
 ```
 your-barrack/
-├── CLAUDE.md        # Protocol injected
-├── GEMINI.md        # Protocol injected
-├── AGENTS.md        # Protocol injected
+├── CLAUDE.md        # Protocol injected (Claude Code)
+├── GEMINI.md        # Protocol injected (Gemini CLI)
+├── AGENTS.md        # Protocol injected (Codex CLI)
+├── agent.yaml       # GitAgent spec — barrack metadata
+├── SOUL.md          # Agent identity / expertise
+├── RULES.md         # Behavior rules (Must Always/Never/Learned)
 ├── SESSIONS.md      # Session index (gitignored)
 ├── sessions/        # Session history (영구 기록 — 조선실록)
+│   ├── .active      # Current session ID marker
 │   ├── claude-20260405-2230.md
 │   └── gemini-20260405-2245.md
 └── wiki/            # Persistent knowledge base (장기 기억)
@@ -127,13 +131,15 @@ aib hook continue claude-20260405-2230
 | `aib hook start <client>` | (Auto) Called by CLI SessionStart hooks |
 | `aib hook end <client>` | (Auto) Called by CLI SessionEnd hooks |
 | `aib hook continue <session_id>` | Continue another CLI's session |
+| `aib barracks [list\|remove\|route\|refresh]` | Manage registered barracks globally |
 | `aib status` | Show active agents and wiki stats |
 | `aib sync` | Re-inject protocol into config files |
 | `aib council [-r N] [-m MODE] "topic"` | Run multi-LLM debate council (Claude + Gemini + Codex) |
+| `aib version` | Show version |
 
 ### Council Command
 
-`aib council` wraps [council.sh](https://github.com/CYRok90/rakku-workspace/blob/main/scripts/council.sh) — a multi-round debate orchestrator that runs Claude, Gemini, and Codex in parallel and synthesizes a consensus answer.
+`aib council` wraps a bundled `council.sh` — a multi-round debate orchestrator that runs Claude, Gemini, and Codex in parallel and synthesizes a consensus answer.
 
 ```bash
 aib council "REST vs gRPC"
@@ -144,32 +150,74 @@ aib council -m pipeline "Migration strategy"
 **Script resolution order** (first found wins):
 1. `$AIB_COUNCIL_SCRIPT` env var
 2. `./scripts/council.sh` (barrack-local)
-3. `~/Develop/rakku-workspace/scripts/council.sh` (fallback)
+3. Brew-installed path (`$(brew --prefix)/share/ai-barracks/scripts/council.sh`)
 
 **Modes**: `debate` (default) | `adversarial` | `pipeline`
+
+## Barrack Registry (`~/.aib/barracks.json`)
+
+`aib init`은 배럭을 글로벌 레지스트리(`~/.aib/barracks.json`)에 자동 등록한다.
+여러 프로젝트를 각각의 배럭으로 관리하고, 외부 시스템(Slack Bot 등)이 메시지 내용에 따라 적절한 배럭을 자동 선택할 수 있다.
+
+```json
+[
+  {
+    "path": "/home/user/project-alpha",
+    "name": "project-alpha",
+    "description": "AI workspace powered by AI Barracks",
+    "expertise": "Python, backend, data pipeline",
+    "topics": "ETFPlatform,ClickHouseOperations"
+  }
+]
+```
+
+메타데이터는 배럭 내 `agent.yaml` (description), `SOUL.md` (expertise), `wiki/Index.md` (topics)에서 자동 추출된다.
+
+```bash
+aib barracks list                  # 등록된 배럭 목록
+aib barracks route "ETF 데이터"     # 메시지와 가장 관련 높은 배럭 경로 반환
+aib barracks refresh               # 모든 배럭 메타데이터 재수집
+aib barracks remove /path/to/old   # 등록 해제
+```
+
+### Slack Bot 연동
+
+[slack-agent-bridge](https://github.com/CYRok90/slack-agent-bridge)는 `barracks.json`을 읽어 메시지 키워드 기반으로 최적의 배럭을 자동 라우팅한다:
+
+```
+Slack 메시지 → barracks.json에서 키워드 매칭 → 최적 배럭 선택
+→ 해당 배럭의 wiki 컨텍스트 주입 + CLI 실행 (cwd = 배럭 경로)
+```
 
 ## Access Methods
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Your Barrack                         │
-│  SESSIONS.md + sessions/ + wiki/ + CLAUDE/GEMINI/AGENTS  │
-└────────┬──────────────┬──────────────┬──────────────────┘
-         │              │              │
-    ┌────▼────┐   ┌─────▼─────┐  ┌────▼────┐
-    │ Claude  │   │  Gemini   │  │  Codex  │    ← Desktop (CLI)
-    │  Code   │   │   CLI     │  │   CLI   │      Hook이 자동 처리
-    └─────────┘   └───────────┘  └─────────┘
+              ~/.aib/barracks.json (글로벌 레지스트리)
                         │
-              ┌─────────▼──────────┐
-              │  slack-agent-bridge │              ← Mobile (Slack Bot)
-              │  (Mac Mini daemon)  │                bridge가 프록시 처리
-              └─────────┬──────────┘
-                        │
-              ┌─────────▼──────────┐
-              │   Slack App        │
-              │  (Phone/Tablet)    │
-              └────────────────────┘
+          ┌─────────────┼──────────────┐
+          ▼             ▼              ▼
+   ┌──────────┐  ┌──────────┐  ┌──────────┐
+   │ Barrack A│  │ Barrack B│  │ Barrack C│     ← 프로젝트별 배럭
+   └────┬─────┘  └────┬─────┘  └────┬─────┘
+        │              │             │
+        └──────┬───────┘─────────────┘
+               │
+    ┌──────────┼──────────────────────┐
+    │          │                      │
+┌───▼───┐ ┌───▼────┐ ┌───▼────┐      │
+│Claude │ │Gemini  │ │ Codex  │      │        ← Desktop (CLI)
+│ Code  │ │  CLI   │ │  CLI   │      │          Hook이 자동 처리
+└───────┘ └────────┘ └────────┘      │
+                                     │
+                          ┌──────────▼──────────┐
+                          │  slack-agent-bridge  │ ← Mobile (Slack Bot)
+                          │  (Mac Mini daemon)   │   barracks.json 라우팅
+                          └──────────┬───────────┘
+                                     │
+                          ┌──────────▼──────────┐
+                          │   Slack App          │
+                          │  (Phone/Tablet)      │
+                          └──────────────────────┘
 ```
 
 ### Desktop: CLI 직접 사용
@@ -179,13 +227,14 @@ aib council -m pipeline "Migration strategy"
 ### Mobile: Slack Bot 경유
 [slack-agent-bridge](https://github.com/CYRok90/slack-agent-bridge)가 프로토콜을 대신 처리:
 
-1. Slack 메시지 수신 → SESSIONS.md 등록 + wiki 컨텍스트 프롬프트 주입
-2. CLI `-p` 실행 → 응답 반환
-3. 스레드 만료 → SESSIONS.md 정리
+1. Slack 메시지 수신 → `barracks.json`에서 키워드 매칭으로 배럭 라우팅
+2. 해당 배럭의 wiki 컨텍스트 주입 + SESSIONS.md 등록
+3. CLI `-p` 실행 (cwd = 라우팅된 배럭) → 응답 반환
+4. 스레드 만료 → SESSIONS.md 정리
 
 ```bash
 # bridge .env 설정
-AIB_BARRACK_DIR=/path/to/your/barrack
+AIB_WORKSPACE_DIR=/path/to/default/barrack  # 기본 배럭 (라우팅 실패 시 fallback)
 ```
 
 ## GitAgent Compatibility
