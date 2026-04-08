@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# aib — AI Barracks CLI v0.2.0
+# aib — AI Barracks CLI v0.7.1
 # Usage: aib <command> [args]
 #
 # Commands:
-#   init [path]                    Initialize a workspace + auto-configure hooks
-#   start <client> [task]          Start an LLM session with tracking
-#   hook start <client>            (Internal) Called by CLI SessionStart hooks
-#   hook end <client>              (Internal) Called by CLI SessionEnd hooks
-#   hook continue <session_id>     Continue a session from another CLI
-#   status                         Show active sessions and wiki stats
-#   sync                           Re-inject protocol into config files
+#   init [path]                              Initialize barrack + configure hooks
+#   start <client> [task]                    Start LLM session with tracking
+#   hook start <client>                      (Internal) Called by CLI SessionStart hooks
+#   hook end <client>                        (Internal) Called by CLI SessionEnd hooks
+#   hook continue <session_id>               Continue a session from another CLI
+#   barracks [list|remove|route|refresh]     Manage registered barracks
+#   status                                   Show active sessions and wiki stats
+#   sync [--dry-run] [path]                  Sync templates + protocol to barrack
+#   council [-r N] [-m MODE] "topic"         Run multi-LLM debate council
+#   version                                  Show version
 
 set -euo pipefail
 
@@ -772,7 +775,7 @@ cmd_council() {
 }
 
 # ============================================================
-# aib barracks [list|remove|route] — Manage registered barracks
+# aib barracks [list|remove|route|refresh] — Manage registered barracks
 # ============================================================
 cmd_barracks() {
     ensure_registry
@@ -1148,7 +1151,7 @@ case "${1:-}" in
         echo "  hook start <client>            (Auto) Called by CLI SessionStart hooks"
         echo "  hook end <client>              (Auto) Called by CLI SessionEnd hooks"
         echo "  hook continue <session_id>     Continue another CLI's session"
-        echo "  barracks [list|remove|route]   Manage registered barracks"
+        echo "  barracks [list|remove|route|refresh]   Manage registered barracks"
         echo "  status                         Show active sessions and wiki"
         echo "  sync [--dry-run] [path]        Sync templates + protocol to barrack"
         echo "  council [-r N] [-m MODE] \"topic\"  Run multi-LLM debate council"
