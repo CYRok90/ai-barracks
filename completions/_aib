@@ -1,0 +1,136 @@
+#compdef aib
+
+# aib — AI Barracks CLI completion for zsh
+
+_aib_client_names() {
+    local -a clients=(
+        'claude:Claude Code'
+        'gemini:Gemini CLI'
+        'codex:Codex CLI'
+        'slack:Slack Bot'
+    )
+    _describe 'client' clients
+}
+
+_aib_barracks_subcommands() {
+    local -a subcmds=(
+        'list:Show registered barracks'
+        'remove:Unregister a barrack by path'
+        'route:Route a query to the best barrack'
+        'refresh:Re-scan and update all barrack metadata'
+    )
+    _describe 'subcommand' subcmds
+}
+
+_aib_hook_subcommands() {
+    local -a subcmds=(
+        'start:Called by CLI SessionStart hooks'
+        'end:Called by CLI SessionEnd hooks'
+        'continue:Continue another CLI session'
+    )
+    _describe 'subcommand' subcmds
+}
+
+_aib_commands() {
+    local -a cmds=(
+        'init:Initialize barrack + configure hooks'
+        'start:Start LLM session with tracking'
+        'hook:Session hook commands (auto)'
+        'status:Show active sessions and wiki'
+        'sync:Sync templates + protocol to barrack'
+        'council:Run multi-LLM debate council'
+        'barracks:Manage registered barracks'
+        'version:Show version'
+        'help:Show usage'
+    )
+    _describe 'command' cmds
+}
+
+_aib_registered_barracks() {
+    local registry="${HOME}/.aib/barracks.json"
+    if [[ -f "$registry" ]]; then
+        local -a paths
+        paths=("${(@f)$(jq -r '.[].path' "$registry" 2>/dev/null)}")
+        _describe 'barrack path' paths
+    else
+        _directories
+    fi
+}
+
+_aib() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '1:command:_aib_commands' \
+        '*::arg:->args'
+
+    case $state in
+        args)
+            case $line[1] in
+                init)
+                    _arguments '1:path:_directories'
+                    ;;
+                start)
+                    _arguments \
+                        '1:client:_aib_client_names' \
+                        '2:task:' \
+                        '--skip-permissions[Skip permission prompts]'
+                    ;;
+                hook)
+                    _arguments -C \
+                        '1:subcommand:_aib_hook_subcommands' \
+                        '*::hookarg:->hookargs'
+                    case $state in
+                        hookargs)
+                            case $line[1] in
+                                start|end)
+                                    _aib_client_names
+                                    ;;
+                                continue)
+                                    _message 'session_id'
+                                    ;;
+                            esac
+                            ;;
+                    esac
+                    ;;
+                status)
+                    # No arguments
+                    ;;
+                sync)
+                    _arguments \
+                        '--dry-run[Show what would change without applying]' \
+                        '1:path:_directories'
+                    ;;
+                council)
+                    _arguments \
+                        '-r[Number of debate rounds]:rounds:' \
+                        '-m[Debate mode]:mode:(debate adversarial pipeline)' \
+                        '*:topic:'
+                    ;;
+                barracks)
+                    _arguments -C \
+                        '1:subcommand:_aib_barracks_subcommands' \
+                        '*::barracksarg:->barracksargs'
+                    case $state in
+                        barracksargs)
+                            case $line[1] in
+                                remove)
+                                    _aib_registered_barracks
+                                    ;;
+                                route)
+                                    _message 'query text'
+                                    ;;
+                            esac
+                            ;;
+                    esac
+                    ;;
+                version)
+                    # No arguments
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_aib "$@"

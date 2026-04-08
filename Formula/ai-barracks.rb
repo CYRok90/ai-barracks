@@ -9,6 +9,7 @@ class AiBarracks < Formula
     bin.install "bin/aib"
     pkgshare.install "templates"
     pkgshare.install "scripts"
+    zsh_completion.install "completions/_aib"
 
     # Patch template dir path in the aib script
     inreplace bin/"aib", /^TEMPLATE_DIR=.*$/, "TEMPLATE_DIR=\"#{pkgshare}/templates\""
