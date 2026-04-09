@@ -210,8 +210,32 @@ aib start codex "테스트 작성" --skip-permissions
 
 세션이 쌓일수록 RULES.md에는 학습한 규칙이, wiki/에는 프로젝트 지식이 축적됩니다. 사람이 다시 설명하는 대신, 프로젝트가 맥락을 보존하게 됩니다.
 
+## CommandCenter: 배럭 관제 데스크톱 앱
+
+CLI만으로 배럭을 관리하면서 느낀 불편함이 하나 있었습니다. **파일을 직접 찾아다녀야 한다는 것.** SOUL.md를 편집하려면 파일 탐색기에서 찾아야 하고, 세션 히스토리를 보려면 sessions/ 디렉토리를 열어야 합니다. 강력한 컨셉(Growth Protocol, File Ownership, Wiki)을 갖추고 있지만, 눈에 보이지 않으면 까먹기 쉽습니다.
+
+이 문제를 해결하기 위해 **AI Barracks CommandCenter**를 만들었습니다. Tauri v2(Rust + React) 기반의 macOS 데스크톱 앱입니다.
+
+- **Overview**: 배럭 상태, Expertise 태그, 통계를 한눈에
+- **Config**: SOUL.md/GROWTH.md는 마크다운 에디터, RULES.md는 구조화된 관리 UI, agent.yaml은 폼 에디터
+- **Agents**: 세션 히스토리 타임라인, 필터링, 완료된 작업 Continue
+- **Wiki**: 토픽 브라우저
+- **System**: 전체 배럭 버전 대시보드, 선택적/일괄 Sync
+- **검색**: 세션, 위키, 규칙, 설정 통합 검색
+- **Light/Dark 테마**: Apple HIG 기반
+
+스타크래프트의 Command Center처럼 — Barracks에서 유닛(에이전트)을 생산하고, Command Center에서 모든 것을 관제합니다.
+
+```bash
+# CommandCenter 빌드 & 실행
+cd ai-barracks-cc
+npm install && npm run tauri build
+open src-tauri/target/release/bundle/macos/AI\ Barracks\ CommandCenter.app
+```
+
 ---
 
-**GitHub**: [CYRok90/ai-barracks](https://github.com/CYRok90/ai-barracks)
+**GitHub**: [CYRok90/ai-barracks](https://github.com/CYRok90/ai-barracks) (CLI)
+**GitHub**: [CYRok90/ai-barracks-cc](https://github.com/CYRok90/ai-barracks-cc) (CommandCenter)
 **License**: MIT
-**현재 버전**: v0.8.2
+**현재 버전**: CLI v0.8.2 / CommandCenter v0.1.0

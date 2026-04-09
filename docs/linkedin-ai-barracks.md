@@ -32,8 +32,27 @@ Claude가 rate limit에 걸리면 Gemini로 세션을 이어받는 것도 가능
 **프로젝트 차원에서 규칙과 지식이 축적되는 작업 흐름**을 만들 수 있었습니다.
 
 실제로 3개 프로젝트에서 총 50+ 세션을 운용하면서 사용 중입니다.
-아직 발전 중이지만, 반복 설명 비용을 줄이고 프로젝트별 맥락을 보존하는 방식으로는 꽤 만족스럽습니다.
+
+---
+
+최근에는 **CommandCenter**라는 데스크톱 앱도 만들었습니다.
+
+CLI만으로 배럭을 관리하면서 **파일을 직접 찾아다니는 불편함**,
+그리고 **좋은 컨셉들을 까먹는 문제**가 있었기 때문입니다.
+
+CommandCenter에서는:
+- 배럭 상태와 에이전트 히스토리를 한눈에 확인
+- 설정 파일(SOUL.md, RULES.md, agent.yaml)을 구조화된 UI로 편집
+- 완료된 에이전트 작업을 Continue로 이어받기
+- 전체 배럭 버전 대시보드 + 일괄 Sync
+- 세션, 위키, 규칙 통합 검색
+
+Tauri v2 (Rust + React) 기반이라 바이너리 10MB, 메모리 30MB 정도로 가볍습니다.
+
+CLI로 에이전트를 다루는 분이라면 그대로 쓰시면 되고,
+**시각적으로 관제하면서 까먹지 않는 것**이 중요하다면 CommandCenter를 추천합니다.
 
 비슷한 고민이 있는 분들에게 참고가 될 수 있어 공유합니다.
 
-GitHub: https://github.com/CYRok90/ai-barracks
+CLI: https://github.com/CYRok90/ai-barracks
+CommandCenter: https://github.com/CYRok90/ai-barracks-cc
