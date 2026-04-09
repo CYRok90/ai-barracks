@@ -1,3 +1,4 @@
+<!-- AIB:OWNERSHIP — [AUTO-GROW] 에이전트가 Learned 섹션에 규칙을 자동 추가합니다. 사용자도 Must Always/Never에 직접 추가 가능. -->
 # Rules
 
 > 에이전트가 따라야 할 행동 규칙. 사용자가 직접 추가하거나, 에이전트가 실수에서 학습하여 자동 추가한다.

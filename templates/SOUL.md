@@ -1,3 +1,4 @@
+<!-- AIB:OWNERSHIP — [USER-OWNED] 사용자가 에이전트의 정체성을 정의하는 파일. 에이전트는 읽기만 하고, 변경 제안은 sessions/{id}.md에 기록합니다. -->
 <!-- AIB:SOUL:v1 — 이 구조를 유지하세요. 내용은 자유롭게 수정 가능합니다. -->
 # Agent Identity
 

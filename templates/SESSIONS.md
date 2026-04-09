@@ -1,3 +1,4 @@
+<!-- AIB:OWNERSHIP — [SYSTEM] Hook/CLI가 자동 관리하는 파일. 사용자/에이전트 직접 수정 금지. -->
 # Active Sessions
 
 > 2시간 이상 Last Update 없는 항목은 stale로 간주한다.

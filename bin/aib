@@ -139,7 +139,11 @@ summarize_session() {
 - 주요 결정 사항 (없으면 생략)
 
 ## Wiki Extractions
-- {topic}.md — {추출 내용 한 줄} (wiki에 남길 지식이 없으면 \"(없음)\")
+다음 기준으로 wiki/RULES에 남길 지식을 판단하라:
+- 아키텍처 결정, 배포 절차, 디버깅 패턴, 코드 구조 → wiki 토픽
+- 실수에서 학습한 규칙, 사용자 교정, 반복 지시 → RULES.md
+- Format: - {파일} — {추출 내용 한 줄}
+- 해당 없으면 분류별 사유 기술 (예: \"(없음 — wiki: 단순 파일 수정 / RULES: 교정 없음)\")
 
 원본 기록:
 $(head -300 "$clean_file")" --output-format text --model claude-sonnet-4-6 2>/dev/null || true)
@@ -480,18 +484,41 @@ cmd_hook_start() {
     echo "  - Append to ## Log when completing meaningful work: - [HH:MM] <request> → <result>"
     echo "  - Record key decisions in ## Decisions"
     echo "  - Record blockers in ## Blockers"
-    echo "  - On session end: fill ## Wiki Extractions with knowledge worth preserving"
+    echo ""
+    echo "[AIB GROWTH] Read GROWTH.md and record knowledge AS YOU DISCOVER IT:"
+    echo "  - New fact/architecture decision → wiki/topics/"
+    echo "  - User correction or repeated instruction → RULES.md"
+    echo "  - Before ending: audit for missed extractions (no bare '없음' — classify why)"
     echo ""
 
-    # Check for previous sessions with empty Wiki Extractions
+    # USER-OWNED file guidance (always shown)
+    echo "[AIB FILES] Your barrack has files YOU should customize:"
+    echo "  - SOUL.md: Define your agent's identity — Expertise, Personality, Core Values."
+    echo "    Edit Expertise to match this barrack's domain. This shapes how the agent responds."
+    echo "  - agent.yaml: Set description, models, and barrack metadata."
+    echo "    A good description helps Slack routing match messages to the right barrack."
+    echo "  - GROWTH.md: Customize growth triggers for this barrack's domain."
+    echo "    Add domain-specific wiki topic suggestions so the agent knows what to capture."
+    echo ""
+
+    # Check for previous sessions with empty Wiki Extractions (carry-over accountability)
     for prev_file in $(ls -t sessions/*.md 2>/dev/null | head -5); do
         [ "$prev_file" = "sessions/${session_id}.md" ] && continue
         if grep -q "## Wiki Extractions" "$prev_file" && ! grep -A1 "## Wiki Extractions" "$prev_file" | grep -q "^- "; then
             local prev_status
             prev_status=$(grep "^\- \*\*Status\*\*:" "$prev_file" | sed 's/.*: //' || true)
             if [ "$prev_status" = "completed" ] || [ "$prev_status" = "interrupted" ]; then
+                # Show specific missed opportunities
+                local prev_decisions
+                prev_decisions=$( (sed -n '/^## Decisions/,/^## /{/^- /p}' "$prev_file" 2>/dev/null || true) | wc -l | tr -d ' ')
+                local prev_logs
+                prev_logs=$(grep -c "^- \[" "$prev_file" 2>/dev/null) || prev_logs=0
                 echo "[AIB] Previous session $(basename "$prev_file" .md) has no Wiki Extractions."
-                echo "[AIB] Review it and extract wiki-worthy knowledge if any."
+                if [ "$prev_decisions" -gt 0 ] || [ "$prev_logs" -gt 1 ]; then
+                    echo "[AIB] It had ${prev_logs} log entries and ${prev_decisions} decisions — review for missed knowledge."
+                else
+                    echo "[AIB] Review it and extract wiki-worthy knowledge if any."
+                fi
                 echo ""
             fi
         fi
@@ -552,6 +579,22 @@ cmd_hook_end() {
         sed -i '' "s/^- \*\*Ended\*\*: (active)/- **Ended**: $(date '+%Y-%m-%d %H:%M')/" "$ctx_file" 2>/dev/null || true
         log_info "Session marked completed: ${ctx_file}"
 
+        # Growth validation: warn if meaningful work but no growth updates
+        local log_count
+        log_count=$(grep -c "^- \[" "$ctx_file" 2>/dev/null) || log_count=0
+        local decision_count
+        decision_count=$( (sed -n '/^## Decisions/,/^## /{/^- /p}' "$ctx_file" 2>/dev/null || true) | wc -l | tr -d ' ')
+        local has_growth=false
+        if (sed -n '/^## Wiki Extractions/,/^## /{/^- /p}' "$ctx_file" 2>/dev/null || true) | grep -q . 2>/dev/null; then
+            has_growth=true
+        fi
+        if [ "$log_count" -ge 2 ] || [ "$decision_count" -ge 1 ]; then
+            if ! $has_growth; then
+                log_warn "Session ${session_id} had ${log_count} log entries and ${decision_count} decisions but NO growth updates."
+                log_warn "Review: sessions/${session_id}.md"
+            fi
+        fi
+
         # Summarize from transcript (Claude) or raw capture (Gemini/Codex)
         local raw_file=""
         if [ "$client" = "claude" ] && [ -n "${CLAUDE_TRANSCRIPT_PATH:-}" ] && [ -f "${CLAUDE_TRANSCRIPT_PATH}" ]; then
@@ -567,7 +610,7 @@ cmd_hook_end() {
         else
             # No raw data — just append basic summary
             local log_count
-            log_count=$(grep -c "^- \[" "$ctx_file" 2>/dev/null || echo "0")
+            log_count=$(grep -c "^- \[" "$ctx_file" 2>/dev/null) || log_count=0
             {
                 echo ""
                 echo "## Summary (auto-generated)"

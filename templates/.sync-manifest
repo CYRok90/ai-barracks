@@ -11,6 +11,7 @@
 agent.yaml:yaml-merge
 SOUL.md:sections
 RULES.md:sections
+GROWTH.md:scaffold
 wiki/Index.md:scaffold
 wiki/Log.md:scaffold
 session-memory-protocol.md:inject

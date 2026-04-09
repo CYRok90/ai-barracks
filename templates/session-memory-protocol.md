@@ -14,6 +14,8 @@ LLM은 세션 시작 시 반드시 다음을 수행한다:
 1. `sessions/.active` 파일을 읽어 현재 세션 ID를 확인
 2. `sessions/{세션ID}.md` 파일을 읽어 자신의 세션 파일을 인지
 3. 첫 사용자 메시지 후 **Task** 필드를 실제 작업 내용으로 업데이트
+4. `RULES.md` 읽기 — 이전 세션에서 학습한 규칙 확인
+5. `GROWTH.md` 읽기 — 성장 트리거와 체크리스트 확인
 
 ### 세션 중 — LLM이 반드시 수행할 것 (CRITICAL)
 1. 첫 사용자 메시지 후 `sessions/{id}.md`의 **Task** 필드를 실제 작업 내용으로 업데이트
@@ -21,6 +23,7 @@ LLM은 세션 시작 시 반드시 다음을 수행한다:
 3. 주요 결정 시 `## Decisions`에 기록
 4. 블로커 발생 시 `## Blockers`에 기록
 5. 매 턴마다 기록하지 않는다 — 의미있는 마일스톤에서만
+6. **Growth: GROWTH.md의 Decision Table에 해당하는 이벤트 발생 시 즉시 wiki/RULES.md 갱신**
 
 ### 세션 종료
 - SESSIONS.md에서 자기 항목 삭제
@@ -40,10 +43,14 @@ SESSIONS.md가 "지금 누가 무엇을 하고 있나"라면, sessions/*.md는 "
 - 매 턴마다 기록하지 않는다 (토큰 낭비 방지)
 - 주요 결정은 `## Decisions`에, 블로커는 `## Blockers`에 기록
 
-### 세션 종료
-1. `## Log`를 검토하여 wiki 추출 가치가 있는 지식 식별
-2. 가치 있는 지식은 wiki/topics/에 append (Memory Layer 프로세스 따름)
-3. `## Wiki Extractions`에 추출 내역 기록 (없으면 "(없음)")
+### 세션 종료 — Growth Audit (CRITICAL)
+종료 시점은 **저장 시점이 아니라 감사(audit) 시점**이다.
+1. GROWTH.md의 Decision Table 기준으로 누락을 점검:
+   - `## Decisions`에 기록된 결정 중 wiki/RULES에 반영 안 된 것이 있는가?
+   - `## Log`에 기록된 작업 중 재사용 가능한 지식이 있는가?
+   - 오류/수정에서 학습한 규칙이 있는가?
+2. 갱신 내역을 `## Wiki Extractions`에 기록 (wiki, RULES.md, Identity Suggestions 모두 포함)
+3. 갱신 없으면 **분류별 사유** 기술 (단순 "(없음)" 금지)
 4. `**Ended**` 필드에 종료 시각 기록
 5. 파일은 삭제하지 않는다 — 실록은 영구 보존
 
