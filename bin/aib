@@ -634,6 +634,12 @@ cmd_hook_end() {
         local task_field
         task_field=$(grep "^\- \*\*Task\*\*:" "$ctx_file" | sed 's/.*: //' || true)
         if [ "$task_field" = "(pending)" ]; then
+            # Empty session (no task + no log) → auto-delete
+            if [ "$log_count" -eq 0 ]; then
+                rm -f "$ctx_file" "sessions/${session_id}.violations"
+                log_info "Empty session deleted: ${session_id} (no task, no log)"
+                return
+            fi
             violations="${violations}TASK_PENDING: Task 필드가 업데이트되지 않음. 첫 사용자 메시지 후 반드시 Task를 설정하세요.\n"
         fi
 
@@ -1371,6 +1377,48 @@ cmd_sync() {
 }
 
 # ============================================================
+# aib sessions clean — Remove empty (pending + no log) session files
+# ============================================================
+cmd_sessions_clean() {
+    local dry_run=false
+    [ "${1:-}" = "--dry-run" ] && dry_run=true
+
+    local count=0
+    for ctx_file in sessions/*.md; do
+        [ -f "$ctx_file" ] || continue
+        [ "$(basename "$ctx_file")" = ".active" ] && continue
+
+        local task_field log_count status_field
+        task_field=$(grep "^\- \*\*Task\*\*:" "$ctx_file" | sed 's/.*: //' || true)
+        log_count=$(grep -c "^- \[" "$ctx_file" 2>/dev/null) || log_count=0
+        status_field=$(grep "^\- \*\*Status\*\*:" "$ctx_file" | sed 's/.*: //' || true)
+
+        # Skip active sessions
+        [ "$status_field" = "active" ] && continue
+
+        if [ "$task_field" = "(pending)" ] && [ "$log_count" -eq 0 ]; then
+            local session_id
+            session_id=$(basename "$ctx_file" .md)
+            if $dry_run; then
+                log_info "[dry-run] Would delete: ${ctx_file}"
+            else
+                rm -f "$ctx_file" "sessions/${session_id}.violations" "sessions/${session_id}.violations.delivered"
+                log_ok "Deleted empty session: ${session_id}"
+            fi
+            count=$((count + 1))
+        fi
+    done
+
+    if [ "$count" -eq 0 ]; then
+        log_info "No empty sessions found"
+    elif $dry_run; then
+        log_info "Would clean ${count} empty session(s) — run without --dry-run to apply"
+    else
+        log_ok "Cleaned ${count} empty session(s)"
+    fi
+}
+
+# ============================================================
 # Main
 # ============================================================
 case "${1:-}" in
@@ -1389,6 +1437,13 @@ case "${1:-}" in
     sync)    shift; cmd_sync "$@" ;;
     council) shift; cmd_council "$@" ;;
     barracks) shift; cmd_barracks "$@" ;;
+    sessions)
+        shift
+        case "${1:-}" in
+            clean) shift; cmd_sessions_clean "$@" ;;
+            *)     log_err "Usage: aib sessions <clean> [--dry-run]"; exit 1 ;;
+        esac
+        ;;
     wiki)
         shift
         case "${1:-}" in
@@ -1408,6 +1463,7 @@ case "${1:-}" in
         echo "  hook continue <session_id>     Continue another CLI's session"
         echo "  barracks [list|remove|route|refresh]   Manage registered barracks"
         echo "  status                         Show active sessions and wiki"
+        echo "  sessions clean [--dry-run]     Remove empty (no task + no log) sessions"
         echo "  wiki lint [--fix]              Check wiki health and freshness"
         echo "  sync [--dry-run] [path]        Sync templates + protocol to barrack"
         echo "  council [-r N] [-m MODE] \"topic\"  Run multi-LLM debate council"
